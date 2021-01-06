@@ -1,2 +1,2 @@
-# exploratory
-This is for all of the exploratory analyses, visualisations etc. Here we can make all the mess we want ;-)
+# Exploratory analyses
+Script used mainly for Post-hoc analysis for the bachelor thesis, but also other unfinished exploratory data analyses
