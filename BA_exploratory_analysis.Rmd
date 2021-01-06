@@ -1,6 +1,6 @@
 ---
 title: "BA exploratory analysis"
-author: "Matilde Jacobsen"
+author: "MJ, EHS, HM"
 date: "created: 10/14/2020, last updated: `r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 editor_options: 
@@ -17,12 +17,15 @@ pacman::p_load(readr,dplyr,lme4,lmerTest,mgcv,tidyverse, scales)
 data <- read_csv("data.csv")
 ```
 
-#Preproces
+#Exploratory Analyses 1:
+Testing the post hoc hypothesis that for the seed colors that converges in the opporsite direction, might converge towards their prototypical binary hues instead of the prototypical unique hue pairings
+
+Preproces
 ```{r}
-#Making RHAD2
+#Defining all the hue angles
 #Binary hues
 purple <- 250.6
-orange <- 46.1
+orange <- 43.1
 chartreuse <- 80.9
 cyan <- 165.2
 #Hues of each seed color 
@@ -35,7 +38,8 @@ red <- 12.2 + 360
 yellow <- 62.4
 green <- 136.5
 blue <- 193.6
-#Calculating deltas
+
+#Calculating deltas for appendix 5
 #dark rose pairs
 dark_rose - purple
 red - dark_rose
@@ -52,28 +56,33 @@ green - grass_green
 ocean_blue - cyan
 blue - ocean_blue
 
-#Creating the alternative hue and RHAD 2
+#Creating the binary hue pair and RHAD 2
 data <- data %>% 
-  mutate(Alternative_focal = case_when(
+  mutate(Binary_hue = case_when(
           Color_label_matched == "seed mustard" ~ orange,
           Color_label_matched == "seed grass green" ~ chartreuse,
           Color_label_matched == "seed ocean blue" ~ cyan,
           Color_label_matched == "seed dark rose" ~ purple)) %>% 
   mutate(
-    Dif2 = Hue_matched - Alternative_focal,
-    RHAD2 = 100/(Seed - Alternative_focal)*Dif2
+    Dif2 = Hue_matched - Binary_hue,
+    RHAD2 = 100/(Seed - Binary_hue)*Dif2
   )
 
 #Danish only
 danish <- data %>% filter(Language == "Danish")
 
+#Descriptive stats
+stats_hue2 <- danish %>% 
+  group_by(Color_label_matched, Condition) %>% 
+  summarise(max(RHAD2),min(RHAD2), mean(RHAD2), sd(RHAD2), mean(Binary_hue))
+
 ```
 
-#Analysis
+Analysis:
+Using the same individual color model as for the main analysis (see post-hoc analysis section in thesis)
 ```{r}
-exp_model <- lmer(
-  RHAD2 ~ Generation:Condition + 
-  (1 + Generation + Condition + Generation:Condition | Color_label_matched) + 
+model4 <- lmer(
+  RHAD2 ~ Generation:Color_label_matched + 
   (1 + Generation + Condition + Generation:Condition| Chain) +
   (1 + Generation + Condition + Generation:Condition| Chain:Subject), 
   data = danish, 
@@ -88,63 +97,42 @@ exp_model <- lmer(
     maxeval = 10000
   )))
 
-summary(exp_model)
-
-coef(exp_model)
+summary(model4)
 
 ```
+Interpretations:
+Dark rose had a significantly negative slope (β = -2.01, p < 0.05), displaying convergence in the hypothesized direction.
+Grass green yielded non-significant results
+Ocean blue and mustard revealed significantly positive slopes (ocean blue: β = 2.9, p < 0.01; mustard: β = 4.1, p < .001), suggesting convergence away from the alternative prototypical hue pairing
 
-#Modeling seeds seperately
+#Exploratory Analyses 2:
+Prdicting Error rates (not done)
 ```{r}
-#Subsets by color
-d_red <- danish %>% filter(Color_label_matched == "seed dark rose")
-d_yellow <- danish %>% filter(Color_label_matched == "seed mustard")
-d_green <- danish %>% filter(Color_label_matched == "seed grass green")
-d_blue <- danish %>% filter(Color_label_matched == "seed ocean blue")
+pacman::p_load(ggpubr, NCmisc, RColorBrewer, unikn)
+#Increased levels of confidence predicts accuracy
+# Descriptive
+stats_acc <- data %>% 
+  group_by(Gender, Color_label_matched) %>% 
+  summarise(min(Accuracy_hue),max(Accuracy_hue),mean(Accuracy_hue),sd(Accuracy_hue),min(Accuracy_sat),max(Accuracy_sat),mean(Accuracy_sat),sd(Accuracy_sat),mean(Confidence),sd(Confidence)) %>% 
+  arrange(Color_label_matched)
 
-#trying with the full model structure
-exp_model2 <- lmer(
-  RHAD2 ~ Generation + Color_label_matched +
-  (1 + Generation + Condition + Generation:Condition| Chain) +
-  (1 + Generation + Condition + Generation:Condition| Chain:Subject),
-  data = danish, 
-  REML = T, 
-  control = lmerControl(
-  optimizer = "nloptwrap",
-  calc.derivs = F,
-  check.nobs.vs.nRE = "ignore",
-  optCtrl = list(
-    ftol_abs = 1e-10, 
-    xtol_abs = 1e-10,
-    maxeval = 10000
-  )))
+## Outliers
+# outliers1 <- which.outlier(data$Accuracy_hue)
+# outliers2 <- which.outlier(data$Accuracy_sat)
+outliers_hue <- boxplot(data$Accuracy_hue, plot=FALSE)$out
+outliers_sat <- boxplot(data$Accuracy_sat, plot=FALSE)$out
+#remove outliers
+data_no_outliers_hue<- data[-which(data$Accuracy_hue %in% outliers_hue),]
+data_no_outliers_sat<- data[-which(data$Accuracy_sat %in% outliers_sat),]
 
-summary(exp_model2)
-##NB: failed to converge
-
-#dark rose
-exp_dark_rose <- lm(RHAD2 ~ Generation:Condition, data = d_red)
-summary(exp_dark_rose)
-
-#Significantly negative slope (B=-0.8495, p < .001)
-
-#mustard
-exp_mustard <- lm(RHAD2 ~ Generation:Condition, data = d_yellow)
-summary(exp_mustard)
-
-#Significantly positive slope (B=5.584 , p > 0.01)
-
-#ocean blue
-exp_ocean_blue <- lm(RHAD2 ~ Generation:Condition, data = d_blue)
-summary(exp_ocean_blue)
-
-#Slightly positive slope, but not significant (B=0.1300, p = 0.7)
-
-#grass green
-exp_grass_green <- lm(RHAD2 ~ Generation:Condition, data = d_green)
-summary(exp_grass_green)
-
-#Slightly negative slope, but not significant (B=-0.4851, p = 0.2)
+## Simple models
+#Hypothesis: accuracy will decrease if confidence goes up
+#For hue
+hue_acc_con <- lm(Accuracy_hue ~ Confidence:Gender, data = data_no_outliers_hue)
+summary(hue_acc_con)
+#For saturation
+sat_acc_con <- lm(Accuracy_sat ~ Confidence:Gender, data = data_no_outliers_sat)
+summary(sat_acc_con)
 
 ```
 
